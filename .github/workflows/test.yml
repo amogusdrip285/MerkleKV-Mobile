@@ -10,23 +10,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      # Install jq first to fix the Flutter action dependency
+      - name: Install jq and other dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl unzip
+      
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.3"  # Use a valid Flutter version
+          flutter-version: "3.24.3"
           channel: 'stable'
           cache: true
           
       - name: Install dependencies
         run: flutter pub get
         
+      - name: Run static analysis
+        run: dart analyze --fatal-infos
+        
       - name: Run unit tests
-        run: |
-          echo "🧪 Running basic validation..."
-          dart pub deps
-          echo "✅ Dependencies resolved successfully"
-          dart analyze --fatal-infos
-          echo "✅ Static analysis completed"
+        run: dart test --reporter=expanded
 
   integration:
     runs-on: ubuntu-latest
@@ -40,11 +44,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install and start Mosquitto broker
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y mosquitto mosquitto-clients netcat-openbsd
+          sudo apt-get install -y mosquitto mosquitto-clients netcat-openbsd jq curl unzip
           
+      - name: Configure and start Mosquitto
+        run: |
           sudo tee /etc/mosquitto/conf.d/testing.conf << EOF
           listener 1883 0.0.0.0
           allow_anonymous true
@@ -54,10 +60,9 @@ jobs:
           sudo systemctl start mosquitto
           sudo systemctl enable mosquitto
           
-          echo "Waiting for Mosquitto broker to start..."
           for i in {1..30}; do
             if nc -z 127.0.0.1 1883 2>/dev/null; then
-              echo "✅ Mosquitto is ready on port 1883"
+              echo "✅ Mosquitto is ready"
               break
             fi
             echo "Waiting for Mosquitto... ($i/30)"
@@ -76,16 +81,5 @@ jobs:
         
       - name: Run integration tests
         run: |
-          echo "🚀 Running basic integration validation..."
-          
-          if nc -z 127.0.0.1 1883 2>/dev/null; then
-            echo "✅ MQTT broker is accessible on port 1883"
-          else
-            echo "❌ MQTT broker is not accessible"
-            sudo systemctl status mosquitto || true
-            netstat -tulpn | grep 1883 || true
-            exit 1
-          fi
-          
-          dart pub deps
-          echo "✅ Integration validation completed"
+          echo "🚀 Running integration tests..."
+          dart test test/commands/integration_test.dart --reporter=expanded

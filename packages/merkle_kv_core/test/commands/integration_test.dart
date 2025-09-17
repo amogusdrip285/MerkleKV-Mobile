@@ -2,6 +2,9 @@
 // ignore_for_file: prefer_const_constructors
 import 'package:test/test.dart';
 
+// Add this import for UuidGenerator
+import '../../lib/src/utils/uuid_generator.dart';
+
 // Simple test to verify core functionality without Flutter dependencies
 import '../../lib/src/commands/command.dart';
 import '../../lib/src/commands/response.dart';
