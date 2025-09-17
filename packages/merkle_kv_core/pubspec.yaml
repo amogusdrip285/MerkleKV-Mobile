@@ -3,15 +3,19 @@ description: A distributed key-value store optimized for mobile edge devices wit
 version: 0.0.1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
+  flutter: 
+    sdk: flutter
   mqtt_client: ^10.0.0
   cbor: ^6.0.0
   crypto: ^3.0.3
   battery_plus: ^6.2.3
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
   test: ^1.25.2
   mockito: ^5.4.4
   mocktail: ^1.0.3
