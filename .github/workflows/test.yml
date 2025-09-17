@@ -85,7 +85,7 @@ jobs:
           rm -rf ~/.pub-cache
       - name: Integration smoke test
         run: |
-          dart pub get
+          flutter pub get
           dart pub deps
           echo "✅ Integration dependencies resolved"
       - name: Run integration tests

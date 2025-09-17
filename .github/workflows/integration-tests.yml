@@ -11,7 +11,7 @@ on:
 
 env:
   DART_VERSION: '3.9.3'
-  FLUTTER_VERSION: '3.19.0'
+  FLUTTER_VERSION: '3.35.4'
 
 jobs:
   integration-tests:
@@ -53,7 +53,7 @@ jobs:
             
       - name: Install Dart dependencies
         working-directory: packages/merkle_kv_core
-        run: dart pub get
+        run: flutter pub get
         
       - name: Generate test certificates
         run: |
@@ -173,7 +173,7 @@ jobs:
           
       - name: Install dependencies
         working-directory: packages/merkle_kv_core
-        run: dart pub get
+        run: flutter pub get
         
       - name: Generate certificates for security testing
         run: |
@@ -215,7 +215,7 @@ jobs:
           
       - name: Install dependencies
         working-directory: packages/merkle_kv_core
-        run: dart pub get
+        run: flutter pub get
         
       - name: Generate certificates
         run: |
