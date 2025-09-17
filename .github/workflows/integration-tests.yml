@@ -39,7 +39,7 @@ jobs:
       - name: Set up Dart
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: ${{ env.DART_VERSION }}
+          sdk: ${{ env.FLUTTER_VERSION }}
           
       - name: Cache Dart dependencies
         uses: actions/cache@v4

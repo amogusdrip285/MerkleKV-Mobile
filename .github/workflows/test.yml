@@ -20,6 +20,10 @@ jobs:
           dart --version
           echo 'void main() { print("test"); }' > /tmp/warmup.dart
           dart run /tmp/warmup.dart || true
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.4" 
       - run: flutter pub get
       - name: Run unit tests
         run: |
