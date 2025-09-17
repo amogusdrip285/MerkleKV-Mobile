@@ -14,39 +14,41 @@ void main() {
       test('follows Locked Spec progression: 1s → 2s → 4s → 8s → 16s → 32s', () {
         final expectedProgression = [1, 2, 4, 8, 16, 32, 32, 32]; // 32s is max
         
-        for (int i = 0; i < expectedProgression.length; i++) {
-          final backoff = policy.calculateBackoff(i);
-          final expectedBase = expectedProgression[i];
-          
-          // Allow for ±20% jitter
-          final minExpected = (expectedBase * 0.8).round();
-          final maxExpected = (expectedBase * 1.2).round();
-          
-          expect(
+        // Fix: Use 1-based indexing instead of 0-based
+        for (int i = 1; i <= expectedProgression.length; i++) {
+            final backoff = policy.calculateBackoff(i);
+            final expectedBase = expectedProgression[i - 1]; // Adjust array access
+            
+            // Allow for ±20% jitter
+            final minExpected = (expectedBase * 0.8).round();
+            final maxExpected = (expectedBase * 1.2).round();
+            
+            expect(
             backoff.inSeconds,
             inInclusiveRange(minExpected, maxExpected),
             reason: 'Attempt $i should be ${expectedBase}s ±20% jitter',
-          );
+            );
         }
-      });
+        });
 
-      test('never exceeds 32 seconds maximum', () {
-        for (int attempt = 0; attempt < 20; attempt++) {
-          final backoff = policy.calculateBackoff(attempt);
-          expect(
+        test('never exceeds 32 seconds maximum', () {
+        // Fix: Start from attempt 1 instead of 0
+        for (int attempt = 1; attempt <= 20; attempt++) {
+            final backoff = policy.calculateBackoff(attempt);
+            expect(
             backoff.inSeconds,
             lessThanOrEqualTo(32 * 1.2), // Account for +20% jitter
             reason: 'Attempt $attempt exceeded 32s + jitter limit',
-          );
+            );
         }
-      });
+        });
 
-      test('applies ±20% jitter correctly', () {
+        test('applies ±20% jitter correctly', () {
         final backoffs = <Duration>[];
         
         // Generate multiple backoffs for the same attempt
         for (int i = 0; i < 100; i++) {
-          backoffs.add(policy.calculateBackoff(3)); // 8s base
+            backoffs.add(policy.calculateBackoff(4)); // 8s base (attempt 4)
         }
         
         // Check that we see variation (jitter working)
@@ -56,9 +58,9 @@ void main() {
         
         // All values should be within ±20% of 8s
         for (final backoff in backoffs) {
-          expect(backoff.inMilliseconds, inInclusiveRange(6400, 9600)); // 8s ±20%
+            expect(backoff.inMilliseconds, inInclusiveRange(6400, 9600)); // 8s ±20%
         }
-      });
+        });
     });
 
     group('shouldAttemptReconnection', () {
