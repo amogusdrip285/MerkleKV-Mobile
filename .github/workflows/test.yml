@@ -20,7 +20,7 @@ jobs:
           dart --version
           echo 'void main() { print("test"); }' > /tmp/warmup.dart
           dart run /tmp/warmup.dart || true
-      - run: dart pub get
+      - run: flutter pub get
       - name: Run unit tests
         run: |
           # Basic validation tests bypassing broken dart test framework
