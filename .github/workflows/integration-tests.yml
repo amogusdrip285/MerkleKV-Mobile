@@ -6,12 +6,10 @@ on:
   pull_request:
     branches: [ main, develop ]
   schedule:
-    # Run integration tests daily at 2 AM UTC
     - cron: '0 2 * * *'
 
 env:
-  DART_VERSION: '3.9.3'
-  FLUTTER_VERSION: '3.35.4'
+  FLUTTER_VERSION: '3.24.3'  # Use valid Flutter version
 
 jobs:
   integration-tests:
@@ -36,22 +34,24 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         
-      - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          sdk: ${{ env.FLUTTER_VERSION }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
           
-      - name: Cache Dart dependencies
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: |
             ~/.pub-cache
             packages/merkle_kv_core/.dart_tool
-          key: dart-${{ runner.os }}-${{ hashFiles('packages/merkle_kv_core/pubspec.yaml') }}
+          key: flutter-${{ runner.os }}-${{ hashFiles('packages/merkle_kv_core/pubspec.yaml') }}
           restore-keys: |
-            dart-${{ runner.os }}-
+            flutter-${{ runner.os }}-
             
-      - name: Install Dart dependencies
+      - name: Install dependencies
         working-directory: packages/merkle_kv_core
         run: flutter pub get
         
