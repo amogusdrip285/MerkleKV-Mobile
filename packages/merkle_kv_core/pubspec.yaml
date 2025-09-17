@@ -9,6 +9,7 @@ dependencies:
   mqtt_client: ^10.0.0
   cbor: ^6.0.0
   crypto: ^3.0.3
+  battery_plus: ^6.2.3
 
 dev_dependencies:
   test: ^1.25.2
