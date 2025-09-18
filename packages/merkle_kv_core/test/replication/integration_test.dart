@@ -366,13 +366,16 @@ Future<void> subscribeAndProbe({
     }
     
     // Set timeout with correct TimeoutException constructor
-    timeoutTimer = Timer(timeout, () {
+    final completer = async.Completer<void>();
+    late async.StreamSubscription subscription;
+    async.Timer? timeoutTimer = async.Timer(timeout, () {
       if (!completer.isCompleted) {
-        completer.completeError(async.TimeoutException(
-          'Subscription probe timeout for topic: $topic '
-          '(operation: subscription_probe, timeout: ${timeout.inMilliseconds}ms)',
-          timeout,
-        ));
+        completer.completeError(
+          async.TimeoutException(
+            'Connection timeout',
+            timeout,
+          ),
+        );
       }
     });
     
