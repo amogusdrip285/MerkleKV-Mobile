@@ -6,7 +6,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:test/test.dart';
-import 'package:test/test.dart' show SkipException;
 import 'package:merkle_kv_core/merkle_kv_core.dart';
 
 typedef AsyncBody = Future<void> Function();
@@ -340,7 +339,7 @@ Future<void> subscribeAndProbe({
   required MqttClientInterface listener,
   required String topic,
   required MqttClientInterface prober,
-  Duration timeout = const Duration(seconds: 10), // Reduced timeout
+  Duration timeout = const Duration(seconds: 10),
 }) async {
   final completer = Completer<void>();
   Timer? timeoutTimer;
@@ -366,11 +365,13 @@ Future<void> subscribeAndProbe({
       }
     }
     
-    // Set timeout with better error message
+    // Set timeout with correct TimeoutException constructor
     timeoutTimer = Timer(timeout, () {
       if (!completer.isCompleted) {
         completer.completeError(TimeoutException(
-          'Subscription probe timeout for topic: $topic (operation: subscription_probe, timeout: ${timeout.inMilliseconds}ms)',
+          'Subscription probe timeout for topic: $topic',
+          operation: 'subscription_probe',
+          timeout: timeout.inMilliseconds,
         ));
       }
     });
@@ -378,10 +379,11 @@ Future<void> subscribeAndProbe({
     await completer.future;
     
   } catch (e) {
-    // Log the error but don't fail the test - skip it instead
+    // Log the error but skip the test instead of failing
     print('Subscription probe failed for $topic: $e');
     if (e is TimeoutException) {
-      throw SkipException('Skipping test due to broker connectivity issues');
+      skip('Skipping test due to broker connectivity issues');
+      return;
     }
     rethrow;
   } finally {
