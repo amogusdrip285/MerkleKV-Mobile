@@ -371,7 +371,7 @@ Future<void> subscribeAndProbe({
         completer.completeError(TimeoutException(
           'Subscription probe timeout for topic: $topic',
           operation: 'subscription_probe',
-          timeout: timeout.inMilliseconds,
+          timeout,
         ));
       }
     });
