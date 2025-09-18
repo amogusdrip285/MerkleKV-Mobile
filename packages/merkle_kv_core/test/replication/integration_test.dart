@@ -1,7 +1,7 @@
 @Tags(['integration'])
 library merkle_kv_core.integration_tests;
 
-import 'dart:async';
+import 'dart:async' as async;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -368,9 +368,9 @@ Future<void> subscribeAndProbe({
     // Set timeout with correct TimeoutException constructor
     timeoutTimer = Timer(timeout, () {
       if (!completer.isCompleted) {
-        completer.completeError(TimeoutException(
-          'Subscription probe timeout for topic: $topic',
-          operation: 'subscription_probe',
+        completer.completeError(async.TimeoutException(
+          'Subscription probe timeout for topic: $topic '
+          '(operation: subscription_probe, timeout: ${timeout.inMilliseconds}ms)',
           timeout,
         ));
       }
