@@ -27,21 +27,21 @@ class BatteryAwareReconnectPolicy {
   /// With ±20% jitter applied to prevent thundering herd
   Duration calculateBackoff(int attempt) {
     // Ensure attempt is at least 1
-    final adjustedAttempt = max(1, attempt);
+    final adjustedAttempt = min(6,max(1, attempt));
     
     // Calculate base delay: 2^(attempt-1) seconds, capped at 32
     // For attempt 1: 2^0 = 1s
     // For attempt 2: 2^1 = 2s  
     // For attempt 3: 2^2 = 4s, etc.
     final exponent = adjustedAttempt - 1;
-    final baseSeconds = min(32, pow(2, exponent).round());
+    final baseSeconds = min(32, 1<<exponent);
     final baseDelay = Duration(seconds: baseSeconds);
     
     // Apply ±20% jitter
     final jitter = (_random.nextDouble() - 0.5) * jitterRange;
     final jitteredMs = (baseDelay.inMilliseconds * (1.0 + jitter)).round();
     
-    final result = Duration(milliseconds: max(1000, jitteredMs)); // Ensure minimum 1s
+    final result = Duration(milliseconds: jitteredMs); // Ensure minimum 1s
     
     _logger.fine('Calculated backoff for attempt $attempt: ${result.inSeconds}s '
         '(base: ${baseDelay.inSeconds}s, jitter: ${(jitter * 100).toStringAsFixed(1)}%)');
