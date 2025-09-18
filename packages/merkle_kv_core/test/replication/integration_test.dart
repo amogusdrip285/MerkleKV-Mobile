@@ -98,8 +98,8 @@ Future<void> connectOrSkip(MqttClientInterface c, {
   final name = what ?? 'mqtt';
   try {
     // Start listening BEFORE calling connect to avoid race condition
-    final completer = Completer<void>();
-    late StreamSubscription subscription;
+    final completer = async.Completer<void>();
+    late async.StreamSubscription subscription;
     
     subscription = c.connectionState.listen((state) {
       if (state == ConnectionState.connected && !completer.isCompleted) {
@@ -108,7 +108,7 @@ Future<void> connectOrSkip(MqttClientInterface c, {
     });
     
     // Set timeout
-    Timer? timeoutTimer = Timer(timeout, () {
+    async.Timer? timeoutTimer = async.Timer(timeout, () {
       if (!completer.isCompleted) {
         completer.completeError(TimeoutException(
           'Connection timeout',
@@ -223,8 +223,8 @@ Future<bool> _tryConnectOnce(String host, int port, MqttTestConfig cfg, Duration
   
   try {
     // Start listening BEFORE calling connect to avoid race condition
-    final completer = Completer<void>();
-    late StreamSubscription subscription;
+    final completer = async.Completer<void>();
+    late async.StreamSubscription subscription;
     
     subscription = client.connectionState.listen((state) {
       if (state == ConnectionState.connected && !completer.isCompleted) {
@@ -233,7 +233,7 @@ Future<bool> _tryConnectOnce(String host, int port, MqttTestConfig cfg, Duration
     });
     
     // Set timeout
-    Timer? timeoutTimer = Timer(timeout, () {
+    async.Timer? timeoutTimer = async.Timer(timeout, () {
       if (!completer.isCompleted) {
         completer.completeError(TimeoutException(
           'Connection timeout',
@@ -300,9 +300,9 @@ void guardedTest(
 
 /// Enhanced connection state waiting with auth/TLS detection
 Future<void> waitForConnected(MqttClientInterface mqtt, {Duration timeout = const Duration(seconds: 20)}) async {
-  final completer = Completer<void>();
-  StreamSubscription? subscription;
-  Timer? timeoutTimer;
+  final completer = async.Completer<void>();
+  async.StreamSubscription? subscription;
+  async.Timer? timeoutTimer;
   
   try {
     // Set up listener first to avoid race condition
@@ -313,7 +313,7 @@ Future<void> waitForConnected(MqttClientInterface mqtt, {Duration timeout = cons
     });
     
     // Set timeout
-    timeoutTimer = Timer(timeout, () {
+    timeoutTimer = async.Timer(timeout, () {
       if (!completer.isCompleted) {
         completer.completeError(TimeoutException(
           'Connection timeout',
@@ -452,7 +452,7 @@ void main() {
         final publisher = await makePublisher(cfg, publisherClient, testId);
         
         // Subscribe to replication events with probe verification
-        final eventReceived = Completer<ReplicationEvent>();
+        final eventReceived = async.Completer<ReplicationEvent>();
         await listenerClient.subscribe('test/$testId/replication/events/+', (topic, payload) {
           try {
             final json = jsonDecode(payload) as Map<String, dynamic>;
@@ -477,7 +477,7 @@ void main() {
           );
         } catch (e) {
           // If probe fails, skip the test instead of failing
-          if (e is TimeoutException) {
+          if (e is async.TimeoutException) {
             print('Skipping test due to broker connectivity issues: ${e.message}');
             return;
           }
