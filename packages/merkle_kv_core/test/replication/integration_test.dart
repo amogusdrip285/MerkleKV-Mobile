@@ -383,6 +383,7 @@ Future<void> subscribeAndProbe({
     // Log the error but skip the test instead of failing
     print('Subscription probe failed for $topic: $e');
     if (e is async.TimeoutException) {
+      // Use markTestSkipped instead of skip
       markTestSkipped('Skipping test due to broker connectivity issues');
       return;
     }
