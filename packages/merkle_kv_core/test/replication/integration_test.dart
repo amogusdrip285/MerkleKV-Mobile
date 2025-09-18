@@ -183,7 +183,7 @@ Future<ItAssumptions> computeItAssumptions() async {
   final port = cfg.port;
 
   // 1) Reachability (TCP)
-  final reachable = await _tryReach(host, port, const Duration(seconds: 5));
+  final reachable = await _tryReach(host, port, const Duration(seconds: 3));
 
   if (!reachable) {
     return ItAssumptions(
@@ -196,7 +196,7 @@ Future<ItAssumptions> computeItAssumptions() async {
   }
 
   // 2) Connectability (MQTT CONNECT/CONNACK success with current auth/TLS)
-  final ok = await _tryConnectOnce(host, port, cfg, const Duration(seconds: 8));
+  final ok = await _tryConnectOnce(host, port, cfg, const Duration(seconds: 5));
   return ItAssumptions(
     host: host,
     port: port,
@@ -283,18 +283,20 @@ void guardedTest(
       final a = await _getAssumptions();
       final require = Platform.environment['IT_REQUIRE_BROKER'] == '1';
 
-      // If broker not usable: either fail early (when required) or return early (runtime skip)
+      // If broker not usable: either fail early (when required) or skip test
       if (!a.reachable || !a.connectable) {
         if (require) {
           fail('Broker required for integration tests: ${a.reasonIfSkip}');
         }
-        // Runtime skip: do not fail, do not hang
+        // Skip test with clear message
+        print('Skipping test: ${a.reasonIfSkip}');
         return;
       }
 
       await body(a);
     },
     timeout: timeout != null ? Timeout(timeout) : null,
+    skip: false, // Don't skip by default, let runtime check handle it
   );
 }
 
@@ -370,7 +372,7 @@ Future<void> subscribeAndProbe({
       if (!completer.isCompleted) {
         completer.completeError(
           async.TimeoutException(
-            'Connection timeout',
+            'Subscription probe timeout',
             timeout,
           ),
         );
@@ -380,13 +382,8 @@ Future<void> subscribeAndProbe({
     await completer.future;
     
   } catch (e) {
-    // Log the error but skip the test instead of failing
+    // Log the error but don't fail - let the test handle it
     print('Subscription probe failed for $topic: $e');
-    if (e is async.TimeoutException) {
-      // Use markTestSkipped instead of skip
-      markTestSkipped('Skipping test due to broker connectivity issues');
-      return;
-    }
     rethrow;
   } finally {
     timeoutTimer?.cancel();
@@ -444,9 +441,9 @@ void main() {
       final publisherClient = buildMqtt(cfg, role: 'publisher', suffix: testId);
       
       try {
-        // Hardened connections with explicit timeouts
-        await connectOrSkip(listenerClient, timeout: const Duration(seconds: 15), require: true, what: 'listener');
-        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 15), require: true, what: 'publisher');
+        // Hardened connections with explicit timeouts - fail fast if broker unavailable
+        await connectOrSkip(listenerClient, timeout: const Duration(seconds: 10), require: true, what: 'listener');
+        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 10), require: true, what: 'publisher');
 
         // Create and initialize publisher with explicit ready check
         final publisher = await makePublisher(cfg, publisherClient, testId);
@@ -467,22 +464,13 @@ void main() {
           }
         });
 
-        // Verify subscription with probe (reduced timeout for CI)
-        try {
-          await subscribeAndProbe(
-            listener: listenerClient,
-            topic: 'test/$testId/replication/events',
-            prober: publisherClient,
-            timeout: const Duration(seconds: 10), // Reduced from 20s
-          );
-        } catch (e) {
-          // If probe fails, skip the test instead of failing
-          if (e is async.TimeoutException) {
-            print('Skipping test due to broker connectivity issues: ${e.message}');
-            return;
-          }
-          rethrow;
-        }
+        // Verify subscription with probe (fail fast if subscription doesn't work)
+        await subscribeAndProbe(
+          listener: listenerClient,
+          topic: 'test/$testId/replication/events',
+          prober: publisherClient,
+          timeout: const Duration(seconds: 8),
+        );
 
         // Publish test event
         await publisher.publishEvent(ReplicationEvent.value(
@@ -494,15 +482,15 @@ void main() {
         ));
 
         // Wait for outbox to drain with timeout
-        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 20));
+        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 15));
 
         // Wait for event with explicit timeout
         final receivedEvent = await eventReceived.future.timeout(
-          const Duration(seconds: 15),
+          const Duration(seconds: 10),
           onTimeout: () => throw TimeoutException(
             'Event not received within timeout',
             operation: 'event_wait',
-            timeoutMs: 15000,
+            timeoutMs: 10000,
           ),
         );
 
@@ -517,7 +505,7 @@ void main() {
         try { await listenerClient.disconnect(); } catch (_) {}
         try { await publisherClient.disconnect(); } catch (_) {}
       }
-    }, timeout: const Duration(seconds: 45));
+    }, timeout: const Duration(seconds: 30)); // Reduced timeout since we fail fast
 
     guardedTest('should handle concurrent replication events', (a) async {
       final cfg = MqttTestConfig.fromEnv();
@@ -529,10 +517,10 @@ void main() {
       final publisher2Client = buildMqtt(cfg, role: 'pub2', suffix: testId);
       
       try {
-        // Hardened connections with explicit timeouts
-        await connectOrSkip(listenerClient, timeout: const Duration(seconds: 15), require: true, what: 'listener');
-        await connectOrSkip(publisher1Client, timeout: const Duration(seconds: 15), require: true, what: 'publisher1');
-        await connectOrSkip(publisher2Client, timeout: const Duration(seconds: 15), require: true, what: 'publisher2');
+        // Hardened connections with explicit timeouts - fail fast
+        await connectOrSkip(listenerClient, timeout: const Duration(seconds: 10), require: true, what: 'listener');
+        await connectOrSkip(publisher1Client, timeout: const Duration(seconds: 10), require: true, what: 'publisher1');
+        await connectOrSkip(publisher2Client, timeout: const Duration(seconds: 10), require: true, what: 'publisher2');
 
         // Create publishers
         final publisher1 = await makePublisher(cfg, publisher1Client, '${testId}-1');
@@ -550,18 +538,18 @@ void main() {
           }
         });
 
-        // Verify subscription with probes (increased timeout for CI reliability)
+        // Verify subscription with probes - reduced timeout
         await subscribeAndProbe(
           listener: listenerClient,
           topic: 'test/${testId}-1/replication/events',
           prober: publisher1Client,
-          timeout: const Duration(seconds: 20),
+          timeout: const Duration(seconds: 8),
         );
         await subscribeAndProbe(
           listener: listenerClient,
           topic: 'test/${testId}-2/replication/events',
           prober: publisher2Client,
-          timeout: const Duration(seconds: 20),
+          timeout: const Duration(seconds: 8),
         );
 
         // Publish concurrent events
@@ -587,11 +575,11 @@ void main() {
         await Future.wait(futures, eagerError: true);
 
         // Wait for outboxes to drain
-        await waitForOutboxDrained(publisher1, timeout: const Duration(seconds: 20));
-        await waitForOutboxDrained(publisher2, timeout: const Duration(seconds: 20));
+        await waitForOutboxDrained(publisher1, timeout: const Duration(seconds: 15));
+        await waitForOutboxDrained(publisher2, timeout: const Duration(seconds: 15));
 
         // Wait for events to arrive with timeout
-        final deadline = DateTime.now().add(const Duration(seconds: 20));
+        final deadline = DateTime.now().add(const Duration(seconds: 15));
         while (receivedEvents.length < 6 && DateTime.now().isBefore(deadline)) {
           await Future.delayed(const Duration(milliseconds: 100));
         }
@@ -619,7 +607,7 @@ void main() {
         try { await publisher1Client.disconnect(); } catch (_) {}
         try { await publisher2Client.disconnect(); } catch (_) {}
       }
-    }, timeout: const Duration(seconds: 90));
+    }, timeout: const Duration(seconds: 60)); // Reduced timeout
 
     guardedTest('should handle broker disconnection gracefully', (a) async {
       final cfg = MqttTestConfig.fromEnv();
@@ -628,8 +616,8 @@ void main() {
       final publisherClient = buildMqtt(cfg, role: 'disconnect-test', suffix: testId);
       
       try {
-        // Initial hardened connection
-        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 15), require: true, what: 'publisher');
+        // Initial hardened connection - fail fast
+        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 10), require: true, what: 'publisher');
 
         // Create publisher
         final publisher = await makePublisher(cfg, publisherClient, testId);
@@ -644,7 +632,7 @@ void main() {
         ));
 
         // Wait for outbox to drain
-        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 20));
+        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 15));
 
         // Force disconnect
         await publisherClient.disconnect();
@@ -670,10 +658,10 @@ void main() {
         expect(outboxStatus.pendingEvents, greaterThan(0));
 
         // Reconnect
-        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 15), require: true, what: 'reconnect');
+        await connectOrSkip(publisherClient, timeout: const Duration(seconds: 10), require: true, what: 'reconnect');
 
         // Wait for outbox to drain after reconnection
-        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 30));
+        await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 20));
 
         // Verify graceful handling
         expect(publisher, isNotNull);
@@ -681,6 +669,6 @@ void main() {
       } finally {
         try { await publisherClient.disconnect(); } catch (_) {}
       }
-    }, timeout: const Duration(seconds: 120));
+    }, timeout: const Duration(seconds: 60)); // Reduced timeout
   });
 }
