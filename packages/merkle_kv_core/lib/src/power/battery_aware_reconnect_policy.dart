@@ -41,7 +41,7 @@ class BatteryAwareReconnectPolicy {
     final jitter = (_random.nextDouble() - 0.5) * jitterRange;
     final jitteredMs = (baseDelay.inMilliseconds * (1.0 + jitter)).round();
     
-    final result = Duration(milliseconds: jitteredMs); // Ensure minimum 1s
+    final result = Duration(milliseconds: jitteredMs); 
     
     _logger.fine('Calculated backoff for attempt $attempt: ${result.inSeconds}s '
         '(base: ${baseDelay.inSeconds}s, jitter: ${(jitter * 100).toStringAsFixed(1)}%)');

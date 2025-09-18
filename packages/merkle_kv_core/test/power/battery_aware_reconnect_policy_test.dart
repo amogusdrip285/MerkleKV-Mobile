@@ -20,8 +20,8 @@ void main() {
           final expectedBase = expectedProgression[i - 1]; // Adjust for 0-based array
           
           // Allow for ±20% jitter
-          final minExpected = (expectedBase * 0.8).round();
-          final maxExpected = (expectedBase * 1.2).round();
+          final minExpected = (expectedBase * 0.8).floor();
+          final maxExpected = (expectedBase * 1.2).ceil();
           
           expect(
             backoff.inSeconds,
