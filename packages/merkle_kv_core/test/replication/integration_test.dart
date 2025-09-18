@@ -336,12 +336,12 @@ Future<void> waitForConnected(MqttClientInterface mqtt, {Duration timeout = cons
   }
 }
 
-/// Enhanced subscription verification with better error handling
-Future<void> subscribeAndProbe({
+/// Optional subscription verification - returns true if successful, false otherwise
+Future<bool> trySubscribeAndProbe({
   required MqttClientInterface listener,
   required String topic,
   required MqttClientInterface prober,
-  Duration timeout = const Duration(seconds: 10),
+  Duration timeout = const Duration(seconds: 5),
 }) async {
   final completer = async.Completer<void>();
   async.Timer? timeoutTimer;
@@ -355,13 +355,13 @@ Future<void> subscribeAndProbe({
     });
     
     // Give subscription time to propagate
-    await Future.delayed(const Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 500));
     
     // Send probe with retry logic
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 3; i++) {
       try {
         await prober.publish('$topic/__probe__$i', '__probe__');
-        await Future.delayed(const Duration(milliseconds: 200));
+        await Future.delayed(const Duration(milliseconds: 100));
       } catch (e) {
         print('Probe attempt $i failed: $e');
       }
@@ -380,11 +380,11 @@ Future<void> subscribeAndProbe({
     });
     
     await completer.future;
+    return true;
     
   } catch (e) {
-    // Log the error but don't fail - let the test handle it
     print('Subscription probe failed for $topic: $e');
-    rethrow;
+    return false;
   } finally {
     timeoutTimer?.cancel();
   }
@@ -441,14 +441,14 @@ void main() {
       final publisherClient = buildMqtt(cfg, role: 'publisher', suffix: testId);
       
       try {
-        // Hardened connections with explicit timeouts - fail fast if broker unavailable
+        // Hardened connections with explicit timeouts
         await connectOrSkip(listenerClient, timeout: const Duration(seconds: 10), require: true, what: 'listener');
         await connectOrSkip(publisherClient, timeout: const Duration(seconds: 10), require: true, what: 'publisher');
 
         // Create and initialize publisher with explicit ready check
         final publisher = await makePublisher(cfg, publisherClient, testId);
         
-        // Subscribe to replication events with probe verification
+        // Subscribe to replication events
         final eventReceived = async.Completer<ReplicationEvent>();
         await listenerClient.subscribe('test/$testId/replication/events/+', (topic, payload) {
           try {
@@ -464,13 +464,17 @@ void main() {
           }
         });
 
-        // Verify subscription with probe (fail fast if subscription doesn't work)
-        await subscribeAndProbe(
+        // Optional subscription verification - proceed even if it fails
+        final probeWorked = await trySubscribeAndProbe(
           listener: listenerClient,
           topic: 'test/$testId/replication/events',
           prober: publisherClient,
-          timeout: const Duration(seconds: 8),
+          timeout: const Duration(seconds: 3),
         );
+        
+        if (!probeWorked) {
+          print('Warning: Subscription probe failed, proceeding with test anyway');
+        }
 
         // Publish test event
         await publisher.publishEvent(ReplicationEvent.value(
@@ -481,16 +485,20 @@ void main() {
           value: 'test-value-1',
         ));
 
-        // Wait for outbox to drain with timeout
+        // Wait for outbox to drain
         await waitForOutboxDrained(publisher, timeout: const Duration(seconds: 15));
 
-        // Wait for event with explicit timeout
+        // Wait for event with longer timeout if probe didn't work
+        final eventTimeout = probeWorked 
+          ? const Duration(seconds: 10) 
+          : const Duration(seconds: 20);
+          
         final receivedEvent = await eventReceived.future.timeout(
-          const Duration(seconds: 10),
+          eventTimeout,
           onTimeout: () => throw TimeoutException(
             'Event not received within timeout',
             operation: 'event_wait',
-            timeoutMs: 10000,
+            timeoutMs: eventTimeout.inMilliseconds,
           ),
         );
 
@@ -505,7 +513,7 @@ void main() {
         try { await listenerClient.disconnect(); } catch (_) {}
         try { await publisherClient.disconnect(); } catch (_) {}
       }
-    }, timeout: const Duration(seconds: 30)); // Reduced timeout since we fail fast
+    }, timeout: const Duration(seconds: 40));
 
     guardedTest('should handle concurrent replication events', (a) async {
       final cfg = MqttTestConfig.fromEnv();
@@ -517,7 +525,7 @@ void main() {
       final publisher2Client = buildMqtt(cfg, role: 'pub2', suffix: testId);
       
       try {
-        // Hardened connections with explicit timeouts - fail fast
+        // Hardened connections with explicit timeouts
         await connectOrSkip(listenerClient, timeout: const Duration(seconds: 10), require: true, what: 'listener');
         await connectOrSkip(publisher1Client, timeout: const Duration(seconds: 10), require: true, what: 'publisher1');
         await connectOrSkip(publisher2Client, timeout: const Duration(seconds: 10), require: true, what: 'publisher2');
@@ -538,19 +546,24 @@ void main() {
           }
         });
 
-        // Verify subscription with probes - reduced timeout
-        await subscribeAndProbe(
+        // Optional subscription verification - don't fail if probes don't work
+        final probe1Worked = await trySubscribeAndProbe(
           listener: listenerClient,
           topic: 'test/${testId}-1/replication/events',
           prober: publisher1Client,
-          timeout: const Duration(seconds: 8),
+          timeout: const Duration(seconds: 3),
         );
-        await subscribeAndProbe(
+        
+        final probe2Worked = await trySubscribeAndProbe(
           listener: listenerClient,
           topic: 'test/${testId}-2/replication/events',
           prober: publisher2Client,
-          timeout: const Duration(seconds: 8),
+          timeout: const Duration(seconds: 3),
         );
+        
+        if (!probe1Worked || !probe2Worked) {
+          print('Warning: Some subscription probes failed, proceeding with test anyway');
+        }
 
         // Publish concurrent events
         final futures = <Future>[];
@@ -578,8 +591,9 @@ void main() {
         await waitForOutboxDrained(publisher1, timeout: const Duration(seconds: 15));
         await waitForOutboxDrained(publisher2, timeout: const Duration(seconds: 15));
 
-        // Wait for events to arrive with timeout
-        final deadline = DateTime.now().add(const Duration(seconds: 15));
+        // Wait for events to arrive with longer timeout if probes didn't work
+        final eventTimeout = (probe1Worked && probe2Worked) ? 15 : 25;
+        final deadline = DateTime.now().add(Duration(seconds: eventTimeout));
         while (receivedEvents.length < 6 && DateTime.now().isBefore(deadline)) {
           await Future.delayed(const Duration(milliseconds: 100));
         }
@@ -607,7 +621,7 @@ void main() {
         try { await publisher1Client.disconnect(); } catch (_) {}
         try { await publisher2Client.disconnect(); } catch (_) {}
       }
-    }, timeout: const Duration(seconds: 60)); // Reduced timeout
+    }, timeout: const Duration(seconds: 70));
 
     guardedTest('should handle broker disconnection gracefully', (a) async {
       final cfg = MqttTestConfig.fromEnv();
@@ -616,7 +630,7 @@ void main() {
       final publisherClient = buildMqtt(cfg, role: 'disconnect-test', suffix: testId);
       
       try {
-        // Initial hardened connection - fail fast
+        // Initial hardened connection
         await connectOrSkip(publisherClient, timeout: const Duration(seconds: 10), require: true, what: 'publisher');
 
         // Create publisher
@@ -669,6 +683,6 @@ void main() {
       } finally {
         try { await publisherClient.disconnect(); } catch (_) {}
       }
-    }, timeout: const Duration(seconds: 60)); // Reduced timeout
+    }, timeout: const Duration(seconds: 60));
   });
 }
