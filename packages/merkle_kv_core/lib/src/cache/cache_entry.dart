@@ -60,7 +60,10 @@ class CacheEntry {
   Duration get timeUntilExpiration => expiresAt.difference(DateTime.now());
 
   /// Whether this entry should be considered "hot" for cache warming.
-  bool get isHot => accessCount >= 5 && timeSinceLastAccess.inMinutes < 10;
+  /// An entry is considered hot if it has high access count AND was accessed recently.
+  /// High access count threshold: >= 5 accesses
+  /// Recent access threshold: < 5 minutes since last access
+  bool get isHot => accessCount >= 5 && timeSinceLastAccess.inMinutes < 5;
 
   /// Estimates memory size of a storage entry in bytes.
   static int _calculateSize(StorageEntry entry) {

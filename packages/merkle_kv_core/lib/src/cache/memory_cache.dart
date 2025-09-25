@@ -81,6 +81,8 @@ class MemoryCache implements CacheInterface {
       final cacheEntry = _cache[key];
       
       if (cacheEntry == null) {
+        // Track access even on miss for cache warming candidates
+        _trackAccess(key);
         _metrics.recordMiss();
         _emitEvent(CacheEvent(type: CacheEventType.miss, key: key));
         return null;
