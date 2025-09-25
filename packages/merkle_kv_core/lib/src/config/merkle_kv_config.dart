@@ -4,6 +4,7 @@ import 'invalid_config_exception.dart';
 import '../mqtt/topic_validator.dart';
 
 import '../utils/battery_awareness.dart';
+import '../cache/cache_config.dart';
 import 'resource_limits.dart';
 import 'mqtt_security_config.dart';
 
@@ -84,6 +85,9 @@ class MerkleKVConfig {
   /// Configuration for battery-aware optimizations.
   final BatteryAwarenessConfig batteryConfig;
 
+  /// Configuration for client-side caching.
+  final CacheConfig cacheConfig;
+
   /// Optional MQTT security configuration (TLS and authentication details).
   final MqttSecurityConfig? mqttSecurity;
 
@@ -108,6 +112,7 @@ class MerkleKVConfig {
     required this.persistenceEnabled,
     required this.storagePath,
     required this.batteryConfig,
+    required this.cacheConfig,
     required this.resourceLimits,
     required this.mqttSecurity,
   });
@@ -133,6 +138,7 @@ class MerkleKVConfig {
     bool persistenceEnabled = false,
     String? storagePath,
     BatteryAwarenessConfig? batteryConfig,
+    CacheConfig? cacheConfig,
     ResourceLimits? resourceLimits,
     MqttSecurityConfig? mqttSecurity,
   }) {
@@ -153,6 +159,7 @@ class MerkleKVConfig {
       persistenceEnabled: persistenceEnabled,
       storagePath: storagePath,
       batteryConfig: batteryConfig ?? const BatteryAwarenessConfig(),
+      cacheConfig: cacheConfig ?? const CacheConfig(),
       resourceLimits: resourceLimits,
       mqttSecurity: mqttSecurity,
     );
@@ -200,6 +207,7 @@ class MerkleKVConfig {
     bool persistenceEnabled = false,
     String? storagePath,
     BatteryAwarenessConfig? batteryConfig,
+    CacheConfig? cacheConfig,
     ResourceLimits? resourceLimits,
     MqttSecurityConfig? mqttSecurity,
   }) {
@@ -228,6 +236,7 @@ class MerkleKVConfig {
       persistenceEnabled: persistenceEnabled,
       storagePath: resolvedStoragePath,
       batteryConfig: batteryConfig ?? const BatteryAwarenessConfig(),
+      cacheConfig: cacheConfig ?? const CacheConfig(),
       resourceLimits: resourceLimits,
       mqttSecurity: mqttSecurity,
     );
@@ -251,6 +260,7 @@ class MerkleKVConfig {
     required bool persistenceEnabled,
     String? storagePath,
     required BatteryAwarenessConfig batteryConfig,
+    required CacheConfig cacheConfig,
     ResourceLimits? resourceLimits,
     MqttSecurityConfig? mqttSecurity,
   }) {
@@ -386,6 +396,7 @@ class MerkleKVConfig {
       persistenceEnabled: persistenceEnabled,
       storagePath: storagePath,
       batteryConfig: batteryConfig,
+      cacheConfig: cacheConfig,
       resourceLimits: resourceLimits,
       mqttSecurity: mqttSecurity,
     );
