@@ -173,9 +173,11 @@ class MemoryCache implements CacheInterface {
   Future<void> invalidate(String key) async {
     if (_disposed) return;
     
+    // Always record invalidation attempt, even if key not in cache
+    _metrics.recordInvalidation();
+    
     if (_cache.containsKey(key)) {
       await _removeEntry(key);
-      _metrics.recordInvalidation();
       _emitEvent(CacheEvent(type: CacheEventType.invalidation, key: key));
     }
     
@@ -189,9 +191,11 @@ class MemoryCache implements CacheInterface {
     
     final now = DateTime.now();
     for (final key in keys) {
+      // Always record invalidation attempt, even if key not in cache
+      _metrics.recordInvalidation();
+      
       if (_cache.containsKey(key)) {
         await _removeEntry(key);
-        _metrics.recordInvalidation();
         _emitEvent(CacheEvent(type: CacheEventType.invalidation, key: key));
       }
       
