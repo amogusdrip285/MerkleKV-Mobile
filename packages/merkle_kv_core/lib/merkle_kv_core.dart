@@ -39,6 +39,14 @@ export 'src/storage/storage_entry.dart';
 export 'src/storage/in_memory_storage.dart';
 export 'src/storage/storage_factory.dart';
 
+// Client-side Caching
+export 'src/cache/cache_config.dart';
+export 'src/cache/cache_entry.dart';
+export 'src/cache/cache_interface.dart';
+export 'src/cache/cache_metrics.dart';
+export 'src/cache/memory_cache.dart';
+export 'src/cache/cached_storage.dart';
+
 // Replication
 export 'src/replication/cbor_serializer.dart';
 export 'src/replication/event_publisher.dart';
