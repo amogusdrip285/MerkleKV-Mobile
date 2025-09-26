@@ -81,6 +81,8 @@ class MemoryCache implements CacheInterface {
       final cacheEntry = _cache[key];
       
       if (cacheEntry == null) {
+        // Track access even on miss for cache warming candidates
+        _trackAccess(key);
         _metrics.recordMiss();
         _emitEvent(CacheEvent(type: CacheEventType.miss, key: key));
         return null;
@@ -296,7 +298,13 @@ class MemoryCache implements CacheInterface {
     _cleanupTimer?.cancel();
     _cleanupTimer = null;
     
-    await clear();
+    // Clear cache before checking _disposed flag
+    _cache.clear();
+    _currentMemoryUsage = 0;
+    _accessFrequency.clear();
+    _metrics.updateMemoryUsage(0);
+    _metrics.recordClear();
+    
     await _eventController.close();
   }
 
