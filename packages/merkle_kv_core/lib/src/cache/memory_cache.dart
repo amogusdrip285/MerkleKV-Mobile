@@ -38,9 +38,6 @@ class MemoryCache implements CacheInterface {
   /// Access frequency tracking for cache warming.
   final Map<String, int> _accessFrequency = <String, int>{};
 
-  /// Recently invalidated keys to prevent immediate re-caching.
-  final Map<String, DateTime> _recentlyInvalidated = <String, DateTime>{};
-
   /// Stream controller for cache events.
   final StreamController<CacheEvent> _eventController = StreamController<CacheEvent>.broadcast();
 
@@ -129,19 +126,6 @@ class MemoryCache implements CacheInterface {
         return;
       }
 
-      // Check if key was recently invalidated (prevent immediate re-caching)
-      final recentInvalidation = _recentlyInvalidated[key];
-      if (recentInvalidation != null) {
-        final timeSinceInvalidation = DateTime.now().difference(recentInvalidation);
-        if (timeSinceInvalidation < Duration(milliseconds: 100)) {
-          // Skip caching if invalidated very recently
-          return;
-        } else {
-          // Remove from recently invalidated if enough time has passed
-          _recentlyInvalidated.remove(key);
-        }
-      }
-
       final effectiveTTL = ttl ?? _config.defaultTTL;
       final cacheEntry = CacheEntry.fromStorageEntry(entry, effectiveTTL);
 
@@ -173,34 +157,23 @@ class MemoryCache implements CacheInterface {
   Future<void> invalidate(String key) async {
     if (_disposed) return;
     
-    // Always record invalidation attempt, even if key not in cache
-    _metrics.recordInvalidation();
-    
     if (_cache.containsKey(key)) {
       await _removeEntry(key);
+      _metrics.recordInvalidation();
       _emitEvent(CacheEvent(type: CacheEventType.invalidation, key: key));
     }
-    
-    // Track recently invalidated key to prevent immediate re-caching
-    _recentlyInvalidated[key] = DateTime.now();
   }
 
   @override
   Future<void> invalidateKeys(Set<String> keys) async {
     if (_disposed) return;
     
-    final now = DateTime.now();
     for (final key in keys) {
-      // Always record invalidation attempt, even if key not in cache
-      _metrics.recordInvalidation();
-      
       if (_cache.containsKey(key)) {
         await _removeEntry(key);
+        _metrics.recordInvalidation();
         _emitEvent(CacheEvent(type: CacheEventType.invalidation, key: key));
       }
-      
-      // Track recently invalidated key to prevent immediate re-caching
-      _recentlyInvalidated[key] = now;
     }
   }
 
@@ -211,7 +184,6 @@ class MemoryCache implements CacheInterface {
     _cache.clear();
     _currentMemoryUsage = 0;
     _accessFrequency.clear();
-    _recentlyInvalidated.clear();
     _metrics.updateMemoryUsage(0);
     _metrics.recordClear();
   }
@@ -236,19 +208,6 @@ class MemoryCache implements CacheInterface {
         await _removeEntry(key);
         _metrics.recordExpiration();
         removedCount++;
-      }
-      
-      // Clean up recently invalidated keys that are old enough
-      final now = DateTime.now();
-      final invalidatedKeysToRemove = <String>[];
-      for (final entry in _recentlyInvalidated.entries) {
-        final timeSinceInvalidation = now.difference(entry.value);
-        if (timeSinceInvalidation > Duration(seconds: 10)) { // Keep for 10 seconds
-          invalidatedKeysToRemove.add(entry.key);
-        }
-      }
-      for (final key in invalidatedKeysToRemove) {
-        _recentlyInvalidated.remove(key);
       }
       
       _metrics.recordCleanup();
@@ -343,7 +302,6 @@ class MemoryCache implements CacheInterface {
     _cache.clear();
     _currentMemoryUsage = 0;
     _accessFrequency.clear();
-    _recentlyInvalidated.clear();
     _metrics.updateMemoryUsage(0);
     _metrics.recordClear();
     
